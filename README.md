@@ -1,1 +1,3 @@
-conda active tradingbot
+conda activate tradingbot
+
+conda deactivate

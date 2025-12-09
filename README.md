@@ -1,3 +1,2 @@
-conda activate tradingbot
+source venv/bin/activate
 
-conda deactivate

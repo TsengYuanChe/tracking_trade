@@ -3,100 +3,148 @@ import yfinance as yf
 
 CSV_PATH = "trades.csv"
 
-# --------------------------------------------------------
-# 自動判斷市場別：上市(TW) / 上櫃(TWO)
-# --------------------------------------------------------
-def resolve_market_symbol(code):
-    """
-    自動判斷該股票是 TW 還是 TWO
-    先嘗試 TW，不行再試 TWO
-    """
-    code = str(code).strip()
-    for market in ["TW", "TWO"]:  # 優先嘗試 TW 的原因：大部分股票在 TW
+def get_close_price(code):
+    for market in ["TW", "TWO"]:
         ticker = yf.Ticker(f"{code}.{market}")
         hist = ticker.history(period="1d")
         if not hist.empty:
-            return f"{code}.{market}"
-    return None  # TW/TWO 都抓不到 → 可能下市/興櫃/代碼錯誤
+            return hist["Close"].iloc[-1], f"{code}.{market}"
+    return None, None
 
 
-# --------------------------------------------------------
-# 單純 BUY 訊號績效模型
-# --------------------------------------------------------
-def calculate_buy_performance(csv_path):
+def calc_avg_cost(buys):
+    return sum(b["price"] for b in buys) / len(buys)
+
+
+def process_trades(csv_path):
     df = pd.read_csv(csv_path)
-
-    # 清理欄位名稱
     df.columns = df.columns.str.strip().str.lower()
 
-    results = []
+    positions = {}
+    completed = []
 
     for _, row in df.iterrows():
+        date = row["date"]
         code = str(row["code"]).strip()
         action = str(row["action"]).strip().lower()
         value_raw = str(row["value"]).strip()
 
-        if action != "buy":
-            continue
-        
         if value_raw.lower() == "null":
             continue
-        
-        buy_price = float(value_raw)
 
-        # 判斷股票所屬市場 (TW / TWO)
-        symbol = resolve_market_symbol(code)
-        if symbol is None:
-            print(f"⚠ 股票 {code} 無法取得市場別（TW/TWO），可能下市或代碼錯誤")
+        price = float(value_raw)
+
+        if code not in positions:
+            positions[code] = {"buys": []}
+
+        pos = positions[code]
+
+        if action == "buy":
+            pos["buys"].append({"date": date, "price": price})
+
+        if action in ["sell", "reduce"]:
+            if len(pos["buys"]) == 0:
+                continue
+
+            avg_cost = calc_avg_cost(pos["buys"])
+            pct = ((price - avg_cost) / avg_cost) * 100
+
+            completed.append({
+                "code": code,
+                "buy_dates": [b["date"] for b in pos["buys"]],
+                "buy_detail": pos["buys"].copy(),
+                "sell_date": date,
+                "avg_cost": avg_cost,
+                "sell_price": price,
+                "pct": pct
+            })
+
+            positions[code]["buys"] = []
+
+    # Open positions
+    open_positions = []
+    for code, pos in positions.items():
+        if len(pos["buys"]) == 0:
             continue
 
-        ticker = yf.Ticker(symbol)
-        hist = ticker.history(period="1d")
-
-        if hist.empty:
-            print(f"⚠ 無法取得 {symbol} 的價格資料")
+        close_price, symbol = get_close_price(code)
+        if close_price is None:
             continue
 
-        close_price = hist["Close"].iloc[-1]
-        pct = (close_price - buy_price) / buy_price * 100
+        avg_cost = calc_avg_cost(pos["buys"])
+        pct = ((close_price - avg_cost) / avg_cost) * 100
 
-        results.append({
+        open_positions.append({
             "code": code,
             "symbol": symbol,
-            "buy_price": buy_price,
+            "buy_dates": [b["date"] for b in pos["buys"]],
+            "buy_detail": pos["buys"].copy(),
+            "avg_cost": avg_cost,
             "close_price": close_price,
             "pct": pct
         })
 
-    return results
+    return completed, open_positions
 
 
 # --------------------------------------------------------
-# 主程式
+# English Output Formatting + Win Rate
+# --------------------------------------------------------
+def print_report(completed, open_positions):
+
+    wins = 0
+    total_trades = len(completed) + len(open_positions)
+
+    print("\n==================== COMPLETED TRADES ====================\n")
+
+    if not completed:
+        print("No completed trades.")
+    else:
+        for t in completed:
+            if t["pct"] > 0:
+                wins += 1
+
+            print(f"[{t['code']}]")
+            print("  Buy Details :")
+            for b in t["buy_detail"]:
+                print(f"    {b['date']} → {b['price']:.2f}")
+
+            print(f"  Sell Date   : {t['sell_date']}")
+            print(f"  Avg Cost    : {t['avg_cost']:.2f}")
+            print(f"  Sell Price  : {t['sell_price']:.2f}")
+            print(f"  P/L (%)     : {t['pct']:+.2f}%")
+            print("------------------------------------------------------------")
+
+    print("\n==================== OPEN POSITIONS ====================\n")
+
+    if not open_positions:
+        print("No open positions.")
+    else:
+        for pos in open_positions:
+            if pos["pct"] > 0:
+                wins += 1
+
+            print(f"[{pos['code']}]")
+            print("  Buy Details :")
+            for b in pos["buy_detail"]:
+                print(f"    {b['date']} → {b['price']:.2f}")
+
+            print(f"  Avg Cost    : {pos['avg_cost']:.2f}")
+            print(f"  Close Price : {pos['close_price']:.2f}")
+            print(f"  P/L (%)     : {pos['pct']:+.2f}%")
+            print("------------------------------------------------------------")
+
+    print("\n==================== SUMMARY ====================\n")
+    if total_trades > 0:
+        win_rate = (wins / total_trades) * 100
+        print(f"Win Rate: {win_rate:.2f}%")
+    else:
+        print("No trades found.")
+
+
+# --------------------------------------------------------
+# Main
 # --------------------------------------------------------
 if __name__ == "__main__":
-    results = calculate_buy_performance(CSV_PATH)
-
-    print("📈 BUY 訊號績效:\n")
-
-    if not results:
-        print("沒有 BUY 訊號")
-        exit()
-
-    total_pct = 0
-    win = 0
-
-    for r in results:
-        print(f"{r['code']} ({r['symbol']}) | BUY: {r['buy_price']} | CLOSE: {r['close_price']:.2f} | Profit: {r['pct']:.2f}%")
-
-        total_pct += r["pct"]
-        if r["pct"] > 0:
-            win += 1
-
-    avg_pct = total_pct / len(results)
-    win_rate = (win / len(results)) * 100
-
-    print("\n==============================")
-    print(f"平均報酬：{avg_pct:.2f}%")
-    print(f"勝率：{win_rate:.2f}%")
-    print("==============================")
+    completed, open_positions = process_trades(CSV_PATH)
+    print_report(completed, open_positions)

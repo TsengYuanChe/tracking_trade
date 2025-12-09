@@ -1,0 +1,72 @@
+# -------------------------
+# Python / Virtual Environment
+# -------------------------
+venv/
+ENV/
+env/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Jupyter
+.ipynb_checkpoints/
+
+# -------------------------
+# VS Code
+# -------------------------
+.vscode/
+.code-workspace
+
+# -------------------------
+# System files
+# -------------------------
+.DS_Store
+Thumbs.db
+
+# -------------------------
+# Logs / Temp files
+# -------------------------
+*.log
+logs/
+tmp/
+temp/
+
+# -------------------------
+# Cache files
+# -------------------------
+*.cache
+.cache/
+pytest_cache/
+pip-log.txt
+
+# -------------------------
+# Local data files
+# (e.g., CSV you update frequently)
+# -------------------------
+*.csv
+*.xlsx
+data/
+datasets/
+
+# If you want to keep trades.csv in repo, remove this:
+# trades.csv
+
+# -------------------------
+# Python packaging
+# -------------------------
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# -------------------------
+# LineBot / API keys (if you add later)
+# -------------------------
+config.json
+*.env
+.env*
+credentials.json
+secret.json
+token.json

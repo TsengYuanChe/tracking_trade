@@ -45,9 +45,9 @@ pip-log.txt
 # Local data files
 # (e.g., CSV you update frequently)
 # -------------------------
-*.csv
+StockList.csv
+StockList1.csv
 *.xlsx
-data/
 datasets/
 
 # If you want to keep trades.csv in repo, remove this:

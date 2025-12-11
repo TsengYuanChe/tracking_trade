@@ -1,8 +1,13 @@
 import pandas as pd
+from datetime import datetime, timedelta
 from .utils import calc_avg_cost
 from .price import get_close_price
 from .company import get_company_name
 
+TODAY = datetime.today().strftime("%Y-%m-%d")
+YESTERDAY = (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+VALID_SELL_DATES = {TODAY, YESTERDAY}
 
 def process_trades(csv_path):
     df = pd.read_csv(csv_path)
@@ -39,15 +44,16 @@ def process_trades(csv_path):
             avg_cost = calc_avg_cost(pos["buys"])
             pct = ((price - avg_cost) / avg_cost) * 100
 
-            completed.append({
-                "code": code,
-                "company": get_company_name(code),
-                "buy_detail": pos["buys"].copy(),
-                "sell_date": date,
-                "avg_cost": avg_cost,
-                "sell_price": price,
-                "pct": pct
-            })
+            if date in VALID_SELL_DATES:
+                completed.append({
+                    "code": code,
+                    "company": get_company_name(code),
+                    "buy_detail": pos["buys"].copy(),
+                    "sell_date": date,
+                    "avg_cost": avg_cost,
+                    "sell_price": price,
+                    "pct": pct
+                })
 
             positions[code]["buys"] = []
 

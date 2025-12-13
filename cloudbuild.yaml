@@ -36,3 +36,6 @@ substitutions:
 
 images:
   - asia-east1-docker.pkg.dev/$PROJECT_ID/tradebot-repo/tradebot:$SHORT_SHA
+
+options:
+  logging: CLOUD_LOGGING_ONLY

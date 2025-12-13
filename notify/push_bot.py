@@ -1,10 +1,15 @@
 import requests
 import json
-
-CHANNEL_TOKEN = "1xy7NtNPkgOs5l++nBWeMYUVJjEg2gjXL+2nu5ipAd3nx5Hc0X8Yl1bUXwdOutg0L87+z7LrAhJD1nLvZHEw3lf6Ocv605XYYacwod2GFz+m9+7BtdKq+O2HM3G3234iPcMrk8cUe+y7b55TL1njNgdB04t89/1O/w1cDnyilFU="
-USER_ID = "U6eec3d5c087d7c7ca248e8d9f8af52fa"
+import os
 
 def push_message(text: str):
+    CHANNEL_TOKEN = os.getenv("LINE_CHANNEL_TOKEN")
+    USER_ID = os.getenv("LINE_USER_ID")
+    
+    if not CHANNEL_TOKEN or not USER_ID:
+        print("[ERROR] Missing LINE credentials.")
+        return
+
     url = "https://api.line.me/v2/bot/message/push"
     headers = {
         "Content-Type": "application/json",

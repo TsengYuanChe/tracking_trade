@@ -1,0 +1,38 @@
+steps:
+  # Step 1 — Build multi-arch Docker image for Cloud Run
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      [
+        'buildx',
+        'build',
+        '--platform=linux/amd64',
+        '-t', 'asia-east1-docker.pkg.dev/$PROJECT_ID/tradebot-repo/tradebot:$SHORT_SHA',
+        '--push',
+        '.'
+      ]
+
+  # Step 2 — Update Cloud Run Job to use the new image
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      [
+        'run', 'jobs', 'update', 'tradebot-job',
+        '--image', 'asia-east1-docker.pkg.dev/$PROJECT_ID/tradebot-repo/tradebot:$SHORT_SHA',
+        '--region', 'asia-east1'
+      ]
+
+  # Step 3 — Execute the job once after deployment
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      [
+        'run', 'jobs', 'execute', 'tradebot-job',
+        '--region', 'asia-east1',
+        '--wait'   # 等 Job 完成，可選
+      ]
+
+substitutions:
+  _REGION: asia-east1
+
+images:
+  - asia-east1-docker.pkg.dev/$PROJECT_ID/tradebot-repo/tradebot:$SHORT_SHA

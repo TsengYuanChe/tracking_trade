@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from core.trade_parser import process_trades
 from report.formatter import print_report, format_report
 from notify.push_bot import push_message

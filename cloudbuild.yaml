@@ -1,38 +1,63 @@
 steps:
-  # Step 1 — Build multi-architecture image
+  # ============================================================
+  # Step 1 — Build multi-arch Docker image (linux/amd64 for Cloud Run)
+  # ============================================================
   - name: 'gcr.io/cloud-builders/docker'
-    entrypoint: 'bash'
     args:
-      - '-c'
-      - |
-        docker buildx create --use
-        docker buildx build \
-          --platform=linux/amd64 \
-          -t asia-east1-docker.pkg.dev/$PROJECT_ID/tradebot-repo/tradebot:$SHORT_SHA \
-          --push .
+      [
+        'buildx', 'build',
+        '--platform=linux/amd64',
+        '-t', 'asia-east1-docker.pkg.dev/$PROJECT_ID/tradebot-repo/tradebot:$SHORT_SHA',
+        '--push',
+        '.'
+      ]
 
-  # Step 2 — Update Cloud Run Job
-  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+  # ============================================================
+  # Step 2 — Update Cloud Run service (webhook API)
+  # ============================================================
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
       [
-        "run", "jobs", "update", "tradebot-job",
-        "--image", "asia-east1-docker.pkg.dev/$PROJECT_ID/tradebot-repo/tradebot:$SHORT_SHA",
-        "--region", "asia-east1"
+        'run', 'deploy', 'tradebot-webhook',
+        '--image', 'asia-east1-docker.pkg.dev/$PROJECT_ID/tradebot-repo/tradebot:$SHORT_SHA',
+        '--region', 'asia-east1',
+        '--platform', 'managed',
+        '--allow-unauthenticated',
+        '--command', 'uvicorn',
+        '--args', 'webhook.webhook_server:app,--host,0.0.0.0,--port,8080'
       ]
 
-  # Step 3 — Execute the Job
-  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+  # ============================================================
+  # Step 3 — Update Cloud Run Job to use new image
+  # ============================================================
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
       [
-        "run", "jobs", "execute", "tradebot-job",
-        "--region", "asia-east1",
-        "--wait"
+        'run', 'jobs', 'update', 'tradebot-job',
+        '--image', 'asia-east1-docker.pkg.dev/$PROJECT_ID/tradebot-repo/tradebot:$SHORT_SHA',
+        '--region', 'asia-east1'
       ]
 
-options:
-  logging: CLOUD_LOGGING_ONLY
+  # ============================================================
+  # Step 4 — Execute the job once after deployment
+  # ============================================================
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      [
+        'run', 'jobs', 'execute', 'tradebot-job',
+        '--region', 'asia-east1',
+        '--wait'
+      ]
+
+substitutions:
+  _REGION: asia-east1
 
 images:
   - asia-east1-docker.pkg.dev/$PROJECT_ID/tradebot-repo/tradebot:$SHORT_SHA
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  default_logs_bucket_behavior: REGIONAL_USER_OWNED_BUCKET

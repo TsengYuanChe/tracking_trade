@@ -1,14 +1,19 @@
 FROM python:3.10-slim
 
-# 安裝必要套件
+# Install gcc for some dependencies
 RUN apt-get update && apt-get install -y gcc
 
 WORKDIR /app
 
-# 複製檔案
-COPY . /app
-
-# 安裝 requirements
+# Copy only requirements first for better docker caching
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 容器預設不指定 CMD，讓 Cloud Run / Cloud Run Job 自己決定
+# Copy entire project
+COPY . .
+
+# Cloud Run needs the container to listen on port 8080
+EXPOSE 8080
+
+# Start FastAPI Webhook server
+CMD ["uvicorn", "webhook.webhook_server:app", "--host", "0.0.0.0", "--port", "8080"]

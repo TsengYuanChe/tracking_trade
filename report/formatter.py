@@ -74,6 +74,7 @@ def format_report(completed, open_positions):
             output.append(f"\n[{pos['code']}] — {pos['company']}")
             for b in pos["buy_detail"]:
                 output.append(f"  BUY   {b['date']} @ {b['price']:.2f}")
+            output.append(f"  Avg Cost    : {pos['avg_cost']:.2f}")
             output.append(f"  CLOSE @ {pos['close_price']:.2f}")
             output.append(f"  P/L   {pos['pct']:+.2f}%")
 

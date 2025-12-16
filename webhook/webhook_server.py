@@ -27,6 +27,12 @@ handler = WebhookHandler(CHANNEL_SECRET)
 config = Configuration(access_token=CHANNEL_TOKEN)
 app = FastAPI()
 
+# ==============================
+# Health Check Endpoint
+# ==============================
+@app.get("/")
+def health():
+    return {"ok": True}
 
 # ==============================
 # Webhook Endpoint

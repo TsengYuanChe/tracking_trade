@@ -13,32 +13,51 @@ from linebot.v3.webhooks import MessageEvent, TextMessageContent
 import pandas as pd
 from datetime import datetime
 
-# ==============================
-# 環境變數設定
-# ==============================
+app = FastAPI()
+
+# ======================================
+# Lazy-load LINE handler & config
+# ======================================
 CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 CHANNEL_TOKEN = os.getenv("LINE_CHANNEL_TOKEN")
 
-if not CHANNEL_SECRET or not CHANNEL_TOKEN:
-    raise Exception("❌ Missing LINE credentials: LINE_CHANNEL_SECRET / LINE_CHANNEL_TOKEN")
+handler = None
+config = None
 
-handler = WebhookHandler(CHANNEL_SECRET)
 
-config = Configuration(access_token=CHANNEL_TOKEN)
-app = FastAPI()
+def init_line_sdk():
+    """避免 container 啟動時爆炸，首次 webhook 時才初始化"""
+    global handler, config
 
-# ==============================
-# Health Check Endpoint
-# ==============================
+    if handler is None:
+        if not CHANNEL_SECRET:
+            print("⚠️ Warning: LINE_CHANNEL_SECRET is missing")
+        else:
+            handler = WebhookHandler(CHANNEL_SECRET)
+
+    if config is None:
+        if not CHANNEL_TOKEN:
+            print("⚠️ Warning: LINE_CHANNEL_TOKEN is missing")
+        else:
+            config = Configuration(access_token=CHANNEL_TOKEN)
+
+
+# ======================================
+# Health Check
+# ======================================
 @app.get("/")
 def health():
     return {"ok": True}
 
-# ==============================
+
+# ======================================
 # Webhook Endpoint
-# ==============================
+# ======================================
 @app.post("/callback")
 async def callback(request: Request):
+
+    init_line_sdk()  # ⭐ 在這裡初始化（不會阻止 container 啟動）
+
     signature = request.headers.get("X-Line-Signature")
     if signature is None:
         raise HTTPException(status_code=400, detail="Missing signature")
@@ -46,43 +65,39 @@ async def callback(request: Request):
     body = await request.body()
     body_str = body.decode("utf-8")
 
-    try:
-        handler.handle(body_str, signature)
-    except Exception as e:
-        print("Webhook error:", e)
-        raise HTTPException(status_code=400, detail="Invalid signature")
+    if handler:
+        try:
+            handler.handle(body_str, signature)
+        except Exception as e:
+            print("Webhook Signature Error:", e)
+            # ⚠️ LINE 官方建議仍須回傳 200，否則會停止推送
+            return PlainTextResponse("Signature Error", status_code=200)
 
     return PlainTextResponse("OK")
 
 
-# ==============================
-# LINE 訊息事件處理
-# ==============================
+# ======================================
+# LINE Message Event
+# ======================================
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
 
     user_text = event.message.text.strip()
-
-    # 回傳用戶說了什麼
     reply_text = f"收到：{user_text}\n"
 
-    # 嘗試解析格式：2025/01/10, 2330, BUY, 600
     try:
         df = read_csv_from_gcs()
 
         parts = [p.strip() for p in user_text.split(",")]
 
         if len(parts) != 4:
-            reply_text += "\n⚠️ 格式錯誤，需為：\n日期, 代號, 動作, 價格"
+            reply_text += "\n⚠️ 格式錯誤，應為：日期, 代號, 動作, 價格"
             reply_message(event.reply_token, reply_text)
             return
 
         date, code, action, value = parts
-
-        # 動作一律轉大寫以防錯
         action = action.upper()
 
-        # 日期格式檢查
         try:
             datetime.strptime(date, "%Y/%m/%d")
         except:
@@ -90,7 +105,6 @@ def handle_message(event):
             reply_message(event.reply_token, reply_text)
             return
 
-        # 建立新 row
         new_row = pd.DataFrame([{
             "date": date,
             "code": code,
@@ -109,26 +123,25 @@ def handle_message(event):
     reply_message(event.reply_token, reply_text)
 
 
-# ==============================
-# 回覆訊息給 LINE
-# ==============================
+# ======================================
+# Reply Helper
+# ======================================
 def reply_message(reply_token, text):
+    init_line_sdk()
+    if not config:
+        print("⚠️ No LINE TOKEN, cannot reply.")
+        return
+
     with ApiClient(config) as api_client:
         line_bot_api = MessagingApi(api_client)
-
         line_bot_api.reply_message(
             reply_token=reply_token,
-            messages=[
-                {
-                    "type": "text",
-                    "text": text
-                }
-            ]
+            messages=[{"type": "text", "text": text}]
         )
 
 
-# ==============================
-# 本地運行
-# ==============================
+# ======================================
+# Local Run
+# ======================================
 if __name__ == "__main__":
     uvicorn.run("webhook.webhook_server:app", host="0.0.0.0", port=8080)

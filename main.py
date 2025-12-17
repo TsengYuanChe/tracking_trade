@@ -17,12 +17,18 @@ else:
 
 
 def load_csv():
-    """本地用本地，GCP 用 GCS。"""
     if USE_GCS:
         bucket = os.getenv("GCS_BUCKET")
         blob = os.getenv("GCS_CSV_PATH", "trades.csv")
+
         print(f"[INFO] Downloading csv from gs://{bucket}/{blob}")
-        download_csv_from_gcs(bucket, blob, CSV_PATH)
+
+        try:
+            download_csv_from_gcs(bucket, blob, CSV_PATH)
+        except Exception as e:
+            print(f"[ERROR] 無法從 GCS 讀取 CSV：{e}")
+            # 不讓 Job 卡住
+            return
     else:
         print(f"[INFO] Using local CSV: {CSV_PATH}")
 

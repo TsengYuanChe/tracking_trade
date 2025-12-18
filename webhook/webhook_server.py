@@ -43,7 +43,7 @@ def init_line_bot():
         print("🔧 Creating WebhookHandler")
         handler = WebhookHandler(channel_secret)
         # 正確綁定事件
-        handler.add(MessageEvent, handle_text_message)
+        handler.add(MessageEvent, handle_text_message, message=TextMessageContent)
 
     if line_api is None:
         print("🔧 Creating Messaging API Client")
@@ -159,23 +159,24 @@ def handle_text_message(event: MessageEvent):
 # REPLY MESSAGE
 # ============================================================
 def reply_message(reply_token, text):
-    print("📤 Sending Reply:", text)
+    print("====================================")
+    print("🔁 reply_message CALLED")
+    print("🔁 reply_token:", reply_token)
+    print("🔁 reply text:", text)
+    print("====================================")
 
     if line_api is None:
         print("❌ Messaging API not initialized")
         return
 
     try:
-        line_api.reply_message(
+        res = line_api.reply_message(
             reply_token=reply_token,
-            messages=[{
-                "type": "text",
-                "text": text
-            }],
+            messages=[{"type": "text", "text": text}],
         )
-        print("✅ Reply sent")
+        print("✅ reply_message success:", res)
     except Exception as e:
-        print("❌ Reply failed:", e)
+        print("🔥 reply_message ERROR:", e)
 
 
 # ============================================================

@@ -1,4 +1,3 @@
-# utils/gcs_csv.py
 import pandas as pd
 from google.cloud import storage
 import io

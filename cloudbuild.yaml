@@ -37,7 +37,9 @@ steps:
       [
         'run', 'jobs', 'update', 'tradebot-job',
         '--image', 'asia-east1-docker.pkg.dev/$PROJECT_ID/tradebot-repo/tradebot:$SHORT_SHA',
-        '--region', 'asia-east1'
+        '--region', 'asia-east1',
+        '--command', 'python',
+        '--args', 'main.py'
       ]
 
   # ============================================================

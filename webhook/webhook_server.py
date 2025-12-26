@@ -12,46 +12,48 @@ from linebot.v3.webhooks import MessageEvent, TextMessageContent
 import pandas as pd
 from datetime import datetime
 
+# ============================================================
+# INIT HANDLER (Must be global, cannot lazy init)
+# ============================================================
+channel_secret = os.getenv("LINE_CHANNEL_SECRET")
+
+if not channel_secret:
+    print("❌ Missing LINE_CHANNEL_SECRET (env not loaded yet!)")
+    handler = None
+else:
+    handler = WebhookHandler(channel_secret)
+
 
 # ============================================================
 # FASTAPI APP
 # ============================================================
 app = FastAPI()
 
-# LINE lazy loaded objects
-handler: WebhookHandler | None = None
 line_api: MessagingApi | None = None
 
 
-# ============================================================
-# INIT LINE (Lazy)
-# ============================================================
-def init_line_bot():
-    """
-    Initialize LINE SDK after Cloud Run loads env vars.
-    """
-    global handler, line_api
-
-    channel_secret = os.getenv("LINE_CHANNEL_SECRET")
-    channel_token = os.getenv("LINE_CHANNEL_TOKEN")
-
-    if not channel_secret or not channel_token:
-        print("❌ Missing LINE credentials")
-        return False
-
-    if handler is None:
-        print("🔧 Creating WebhookHandler")
-        handler = WebhookHandler(channel_secret)
-        # 正確綁定事件
-        handler.add(MessageEvent, TextMessageContent, handle_text_message)
-        
+def init_line_api():
+    """Lazy initialize Messaging API only."""
+    global line_api
     if line_api is None:
+        token = os.getenv("LINE_CHANNEL_TOKEN")
+        if not token:
+            print("❌ Missing LINE_CHANNEL_TOKEN")
+            return False
+
         print("🔧 Creating Messaging API Client")
-        config = Configuration(access_token=channel_token)
+        config = Configuration(access_token=token)
         line_api = MessagingApi(ApiClient(config))
 
     return True
 
+# ============================================================
+# DECORATOR BINDING — The ONLY supported method in SDK v3
+# ============================================================
+if handler:
+    @handler.add(MessageEvent, message=TextMessageContent)
+    def _(event):
+        handle_text_message(event)
 
 # ============================================================
 # HEALTH CHECK
@@ -69,17 +71,20 @@ async def callback(request: Request):
 
     print("\n==============================")
     print("🔥 Received /callback")
+    
+    if handler is None:
+        print("❌ handler is None (missing env on start)")
+        raise HTTPException(500, "Handler not initialized")
 
-    if not init_line_bot():
-        raise HTTPException(status_code=500, detail="LINE init failed")
+    if not init_line_api():
+        raise HTTPException(500, "LINE API not initialized")
 
     # ---- Signature ----
     signature = request.headers.get("X-Line-Signature")
     print("📝 Signature:", signature)
 
     if not signature:
-        print("❌ Missing signature")
-        raise HTTPException(status_code=400, detail="Missing signature")
+        raise HTTPException(400, "Missing signature")
 
     # ---- Body ----
     body_bytes = await request.body()
@@ -92,7 +97,7 @@ async def callback(request: Request):
         print("✅ handler.handle finished")
     except Exception as e:
         print("❌ Webhook Error:", e)
-        raise HTTPException(status_code=400, detail="Invalid signature")
+        raise HTTPException(400, "Invalid signature")
 
     return PlainTextResponse("OK")
 

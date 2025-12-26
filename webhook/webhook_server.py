@@ -6,7 +6,7 @@ from fastapi.responses import PlainTextResponse
 from utils.gcs_csv import read_csv_from_gcs, write_csv_to_gcs
 
 from linebot.v3 import WebhookHandler
-from linebot.v3.messaging import MessagingApi, ApiClient, Configuration
+from linebot.v3.messaging import MessagingApi, ApiClient, Configuration, TextMessage
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
 import pandas as pd
@@ -177,7 +177,7 @@ def reply_message(reply_token, text):
     try:
         res = line_api.reply_message(
             reply_token=reply_token,
-            messages=[{"type": "text", "text": text}],
+            messages=[TextMessage(text=text)],
         )
         print("✅ reply_message success:", res)
     except Exception as e:

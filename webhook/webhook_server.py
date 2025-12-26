@@ -43,7 +43,7 @@ def init_line_bot():
         print("🔧 Creating WebhookHandler")
         handler = WebhookHandler(channel_secret)
         # 正確綁定事件
-        handler.add(MessageEvent, lambda event: isinstance(event.message, TextMessageContent) and handle_text_message(event))
+        handler.add(MessageEvent, handle_text_message, message=TextMessageContent)
 
     if line_api is None:
         print("🔧 Creating Messaging API Client")

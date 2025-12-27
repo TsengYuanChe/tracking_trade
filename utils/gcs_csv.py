@@ -3,9 +3,11 @@ from google.cloud import storage
 import io
 import os
 
-# GCS bucket name 以及 CSV 路徑
-BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "tradebot-storage")
-CSV_FILE = "trades.csv"
+BUCKET_NAME = os.getenv("GCS_BUCKET")
+CSV_FILE = os.getenv("GCS_CSV_PATH", "trades.csv")
+
+if not BUCKET_NAME:
+    print("❌ ERROR: Cloud Run 未設定 GCS_BUCKET！")
 
 
 def get_gcs_client():

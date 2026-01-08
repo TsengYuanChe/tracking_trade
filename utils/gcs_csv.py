@@ -30,13 +30,20 @@ def read_csv_from_gcs():
         return pd.DataFrame(columns=["date", "code", "action", "value"])
 
     csv_bytes = blob.download_as_bytes()
-    return pd.read_csv(io.BytesIO(csv_bytes))
+    
+    df = pd.read_csv(io.BytesIO(csv_bytes), dtype=str)
+    df = df.fillna("null")
+    return df
 
 
 def write_csv_to_gcs(df: pd.DataFrame):
     """
     將 DataFrame 寫回 GCS (取代原本的 trades.csv)
     """
+    df = df.fillna("null")
+    df = df.astype(str)
+    
+    df["code"] = df["code"].str.replace(".0", "", regex=False)
 
     client = get_gcs_client()
     bucket = client.bucket(BUCKET_NAME)

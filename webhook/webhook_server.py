@@ -137,6 +137,12 @@ def handle_text_message(event: MessageEvent):
             reply_message(event.reply_token,
                           reply_text + "\n⚠ 日期格式錯誤：YYYY/MM/DD")
             return
+        
+        value_norm = value.strip().lower()
+        if value_norm in ["", "none", "null"]:
+            value = "null"
+
+        code = code.replace(".0", "")
 
         # ---- 新增 Row ----
         new_row = pd.DataFrame([{

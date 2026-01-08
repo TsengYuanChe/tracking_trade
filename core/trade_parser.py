@@ -6,8 +6,26 @@ from .company import get_company_name
 
 TODAY = datetime.today().strftime("%Y-%m-%d")
 YESTERDAY = (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
-
 VALID_SELL_DATES = {TODAY, YESTERDAY}
+
+# --------------------------------------------------------
+# 統一處理價格的函式
+# --------------------------------------------------------
+def resolve_price(code, value):
+    """
+    若 value=null → 用收盤價
+    若 value 有數字 → 用該數字
+    """
+    v = str(value).strip().lower()
+
+    if v in ["null", "", "none"]:
+        close_price, _ = get_close_price(code)
+        return close_price
+
+    try:
+        return float(value)
+    except:
+        return None
 
 def process_trades(csv_path):
     df = pd.read_csv(csv_path)
@@ -31,20 +49,18 @@ def process_trades(csv_path):
         # BUY
         # --------------------------------------------------------
         if action == "buy":
-            if value.lower() == "null":
-                continue
-
-            price = float(value)
-            pos["buys"].append({"date": date, "price": price})
+            price = resolve_price(code, value)
+            if price is not None:
+                pos["buys"].append({"date": date, "price": price})
             continue
 
         # --------------------------------------------------------
         # KEEP → 用收盤價買進
         # --------------------------------------------------------
         if action == "keep":
-            close_price, _ = get_close_price(code)
-            if close_price is not None:
-                pos["buys"].append({"date": date, "price": close_price})
+            price = resolve_price(code, value)
+            if price is not None:
+                pos["buys"].append({"date": date, "price": price})
             continue
         
         # --------------------------------------------------------
@@ -53,16 +69,10 @@ def process_trades(csv_path):
         if action in ["sell", "reduce"]:
             if len(pos["buys"]) == 0:
                 continue
-
-            # 1) 有明確價格 → 用 value
-            if value.lower() != "null":
-                price = float(value)
-            else:
-                # 2) null → 一律用收盤價
-                close_price, _ = get_close_price(code)
-                if close_price is None:
-                    continue
-                price = close_price
+            
+            price = resolve_price(code, value)
+            if price is not None:
+                continue
 
             avg_cost = calc_avg_cost(pos["buys"])
             pct = ((price - avg_cost) / avg_cost) * 100
@@ -79,7 +89,7 @@ def process_trades(csv_path):
                     "pct": pct
                 })
 
-            # 卖掉全部
+            # 賣出後清空，重新計算新的持倉
             positions[code]["buys"] = []
 
             continue
